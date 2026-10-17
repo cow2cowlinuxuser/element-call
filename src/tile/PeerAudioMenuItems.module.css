@@ -1,0 +1,30 @@
+/*
+Copyright 2026 Element Creations Ltd.
+
+SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+Please see LICENSE in the repository root for full details.
+*/
+
+.slider {
+  width: 100%;
+}
+
+.equaliser {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-2x);
+  inline-size: 100%;
+}
+
+.band {
+  display: flex;
+  align-items: center;
+  gap: var(--cpd-space-3x);
+}
+
+.bandLabel {
+  flex: 0 0 auto;
+  min-inline-size: 3.5em;
+  font: var(--cpd-font-body-sm-regular);
+  color: var(--cpd-color-text-secondary);
+}

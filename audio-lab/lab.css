@@ -1,0 +1,224 @@
+/*
+Copyright 2026 Element Creations Ltd.
+
+SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+Please see LICENSE in the repository root for full details.
+*/
+
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 14px;
+  background: #101317;
+  color: #e6e8eb;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px 24px 48px;
+}
+
+h1 {
+  font-size: 22px;
+  margin: 8px 0 4px;
+}
+
+h2 {
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+
+header p,
+.hint {
+  color: #9aa1aa;
+}
+
+.hint {
+  font-size: 12px;
+  margin: 4px 0 8px;
+}
+
+.error {
+  color: #ff6b6b;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+section {
+  background: #1a1e24;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+fieldset {
+  border: 1px solid #2c323a;
+  border-radius: 8px;
+  margin: 12px 0;
+  padding: 8px 12px;
+}
+
+legend {
+  color: #9aa1aa;
+  padding: 0 4px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.slider {
+  display: grid;
+  grid-template-columns: 150px 1fr 90px;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.slider output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+button {
+  background: #2c323a;
+  color: inherit;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.primary {
+  background: #0dbd8b;
+  color: #04110c;
+}
+
+select,
+textarea {
+  background: #101317;
+  color: inherit;
+  border: 1px solid #2c323a;
+  border-radius: 6px;
+  padding: 6px;
+}
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 4px 8px;
+  margin: 10px 0;
+}
+
+.meter-bar {
+  position: relative;
+  height: 14px;
+  background: #101317;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.meter-rms,
+.meter-peak {
+  position: absolute;
+  inset: 0 auto 0 0;
+}
+
+.meter-peak {
+  background: rgba(13, 189, 139, 0.35);
+}
+
+.meter-rms {
+  background: #0dbd8b;
+  z-index: 1;
+}
+
+.meter-hold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ffd166;
+  z-index: 2;
+}
+
+.meter-values,
+.meter-clips {
+  grid-column: 2;
+  font-size: 12px;
+  color: #9aa1aa;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-clips.clipping {
+  color: #ff6b6b;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.stats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.spectrum {
+  width: 100%;
+  margin-top: 12px;
+  background: #101317;
+  border-radius: 8px;
+}
+
+.clips > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.clips span {
+  width: 80px;
+}

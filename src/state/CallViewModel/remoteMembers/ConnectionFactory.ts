@@ -27,6 +27,10 @@ import type {
 import type { MediaDevices } from "../../MediaDevices.ts";
 import type { Behavior } from "../../Behavior.ts";
 import type { ProcessorState } from "../../../livekit/TrackProcessorContext.tsx";
+import {
+  getMicProcessing,
+  wantsBrowserNoiseSuppression,
+} from "../../MicProcessing.ts";
 import { getLiveKitOptions } from "../../../livekit/options.ts";
 import {
   advancedCamera,
@@ -176,7 +180,10 @@ function generateRoomOption({
       ...liveKitOptions.audioCaptureDefaults,
       deviceId: devices.audioInput.selected$.value?.id,
       echoCancellation: echoCancellationSetting.getValue(),
-      noiseSuppression: noiseSuppressionSetting.getValue(),
+      noiseSuppression: wantsBrowserNoiseSuppression(
+        noiseSuppressionSetting.getValue(),
+        getMicProcessing(),
+      ),
       autoGainControl: autoGainControlSetting.getValue(),
     },
     audioOutput: {

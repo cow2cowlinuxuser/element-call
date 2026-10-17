@@ -8,6 +8,7 @@ Please see LICENSE in the repository root for full details.
 import { type MatrixClient, type Room as MatrixRoom } from "matrix-js-sdk";
 import {
   type FC,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -17,6 +18,7 @@ import {
   type JSX,
   type ReactNode,
 } from "react";
+import { CloseIcon } from "@vector-im/compound-design-tokens/assets/web/icons";
 import useMeasure from "react-use-measure";
 import { type MatrixRTCSession } from "matrix-js-sdk/lib/matrixrtc";
 import classNames from "classnames";
@@ -55,7 +57,12 @@ import { makeOneOnOneMobileLayout } from "../grid/OneOnOneMobileLayout";
 import { makeSpotlightExpandedLayout } from "../grid/SpotlightExpandedLayout";
 import { makeSpotlightLandscapeLayout } from "../grid/SpotlightLandscapeLayout";
 import { makeSpotlightPortraitLayout } from "../grid/SpotlightPortraitLayout";
-import { GridTileViewModel, type TileViewModel } from "../state/TileViewModel";
+import {
+  GridTileViewModel,
+  SpotlightTileViewModel,
+  type TileViewModel,
+} from "../state/TileViewModel";
+import { type MediaViewModel } from "../state/media/MediaViewModel";
 import {
   ReactionsSenderProvider,
   useReactionsSender,
@@ -90,13 +97,18 @@ import { type DeveloperSettingsSnapshot } from "../settings/DeveloperSettingsTab
 import { type ViewModel } from "../state/ViewModel.ts";
 import { RingingStatus } from "../tile/RingingStatus.tsx";
 import { RingingAudioRenderer } from "./RingingAudioRenderer.tsx";
+import { miniGridShape } from "./miniGrid.ts";
 
 declare module "react" {
   interface CSSProperties {
     "--call-view-safe-area-inset-top"?: string;
     "--call-view-safe-area-inset-bottom"?: string;
+    "--pip-mini-columns"?: number;
+    "--compact-columns"?: number;
   }
 }
+
+const miniGridGap = 8;
 
 export interface ActiveCallProps extends Omit<
   InCallViewProps,
@@ -301,6 +313,8 @@ export const InCallView: FC<InCallViewProps> = ({
   const reconnecting = useBehavior(vm.reconnecting$);
   const screenShareError = useBehavior(vm.screenShareError$);
   const layout = useBehavior(vm.layout$);
+  const compactMedia = useBehavior(vm.compactMedia$);
+  const expandedTile = useBehavior(vm.expandedTile$);
   const edgeToEdge = useBehavior(vm.edgeToEdge$);
   const overflowing = useBehavior(vm.overflowing$);
   const showNameTags = useBehavior(vm.showNameTags$);
@@ -340,6 +354,50 @@ export const InCallView: FC<InCallViewProps> = ({
     [vm],
   );
   const onPointerOut = useCallback(() => vm.unhoverScreen(), [vm]);
+
+  useEffect(() => {
+    if (expandedTile === null) return;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") {
+        vm.setExpandedMedia(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return (): void => window.removeEventListener("keydown", onKeyDown);
+  }, [expandedTile, vm]);
+
+  const compactTileCacheRef = useRef(
+    new WeakMap<MediaViewModel, TileViewModel>(),
+  );
+  const getCompactTile = useCallback((media: MediaViewModel): TileViewModel => {
+    let tile = compactTileCacheRef.current.get(media);
+    if (tile === undefined) {
+      tile =
+        media.type === "screen share"
+          ? new SpotlightTileViewModel(
+              constant([media]),
+              constant(false),
+              constant("solid"),
+            )
+          : new GridTileViewModel(constant(media));
+      compactTileCacheRef.current.set(media, tile);
+    }
+    return tile;
+  }, []);
+
+  const onTileCardClick = useCallback(
+    (e: ReactMouseEvent<HTMLDivElement>, media: MediaViewModel) => {
+      if (
+        (e.target as Element).closest?.(
+          "button, input, a, [role='menuitem'], [role='menuitemcheckbox'], [role='slider'], [role='dialog'], [role='menu']",
+        ) !== null
+      ) {
+        return;
+      }
+      vm.setExpandedMedia(media);
+    },
+    [vm],
+  );
 
   const [settingsTab, setSettingsTab] = useState(defaultSettingsTab);
 
@@ -548,7 +606,11 @@ export const InCallView: FC<InCallViewProps> = ({
   const showFooter = useBehavior(footerVm.showFooter$);
   const renderContent = (): JSX.Element => {
     if (layout.type === "pip") {
-      return (
+      const miniTiles = layout.grid.length > 0;
+      const spotlightHeight = miniTiles
+        ? gridBounds.height / 2
+        : gridBounds.height;
+      const spotlight = layout.spotlight && (
         <SpotlightTile
           className={styles.tile}
           itemClassName={styles.spotlightItem}
@@ -557,13 +619,75 @@ export const InCallView: FC<InCallViewProps> = ({
           expanded
           onToggleExpanded={null}
           targetWidth={gridBounds.width}
-          targetHeight={gridBounds.height}
+          targetHeight={spotlightHeight}
           showIndicators={false}
           showNameTags={showNameTags}
           showRingingStatus={vm.ringingStatusLocation === "tile"}
           focusable={!contentObscured}
           aria-hidden={contentObscured}
         />
+      );
+      if (!miniTiles) return spotlight ?? <></>;
+
+      const shape = miniGridShape(
+        layout.grid.length,
+        gridBounds.width,
+        layout.spotlight
+          ? gridBounds.height - spotlightHeight
+          : gridBounds.height,
+        miniGridGap,
+      );
+      return (
+        <div className={styles.pipMini} aria-hidden={contentObscured}>
+          {spotlight}
+          <div
+            className={styles.pipMiniGrid}
+            data-testid="pip-mini-grid"
+            style={{ "--pip-mini-columns": shape.columns }}
+          >
+            {layout.grid.map((tile) => (
+              <Tile
+                key={tile.id}
+                model={tile}
+                targetWidth={shape.tileWidth}
+                targetHeight={shape.tileHeight}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (bounds.width > 0) {
+      const columns = bounds.width < 300 ? 1 : bounds.width < 520 ? 2 : 3;
+      const tileWidth = Math.max(
+        110,
+        Math.floor((bounds.width - 24 - (columns - 1) * 8) / columns),
+      );
+      const tileHeight = 136;
+      return (
+        <div
+          className={styles.compactCallGrid}
+          data-testid="compact-call-grid"
+          aria-hidden={contentObscured}
+          style={{ "--compact-columns": columns }}
+        >
+          {compactMedia.map((media) => (
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+            <div
+              key={media.id}
+              className={styles.compactTileCard}
+              data-testid="compact-tile-card"
+              onClick={(e) => onTileCardClick(e, media)}
+            >
+              <Tile
+                model={getCompactTile(media)}
+                targetWidth={tileWidth}
+                targetHeight={tileHeight}
+              />
+            </div>
+          ))}
+        </div>
       );
     }
 
@@ -665,16 +789,51 @@ export const InCallView: FC<InCallViewProps> = ({
       onPointerOut={onPointerOut}
     >
       {header}
-      {audioParticipants.map(({ livekitRoom, url, participants }) => (
+      {audioParticipants.map(({ livekitRoom, url, participants, userIds }) => (
         <LivekitRoomAudioRenderer
           key={url}
           url={url}
           livekitRoom={livekitRoom}
           validIdentities={participants}
+          userIds={userIds}
           muted={muteAllAudio}
         />
       ))}
       {renderContent()}
+      {expandedTile !== null && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+        <div
+          className={styles.floatingOverlayBackdrop}
+          data-testid="floating-tile-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) vm.setExpandedMedia(null);
+          }}
+        >
+          <div className={styles.floatingOverlayCard}>
+            <button
+              type="button"
+              className={styles.floatingOverlayClose}
+              aria-label={t("action.close")}
+              onClick={() => vm.setExpandedMedia(null)}
+            >
+              <CloseIcon width={20} height={20} aria-hidden />
+            </button>
+            <SpotlightTile
+              vm={expandedTile}
+              expanded
+              onToggleExpanded={() => vm.setExpandedMedia(null)}
+              targetWidth={Math.max(320, (bounds.width || 640) - 32)}
+              targetHeight={Math.max(240, (bounds.height || 480) - 64)}
+              showIndicators={false}
+              showNameTags={showNameTags}
+              showRingingStatus={vm.ringingStatusLocation === "tile"}
+              focusable={!contentObscured}
+              className={styles.tile}
+              itemClassName={styles.spotlightItem}
+            />
+          </div>
+        </div>
+      )}
       <CallEventAudioRenderer vm={vm} muted={muteAllAudio} />
       <ReactionsAudioRenderer vm={vm} muted={muteAllAudio} />
       <RingingAudioRenderer vm={ringingVm} muted={muteAllAudio} />

@@ -7,6 +7,7 @@ Please see LICENSE in the repository root for full details.
 */
 import {
   ConnectionState as LivekitConnectionState,
+  LocalAudioTrack,
   type LocalTrackPublication,
   LocalVideoTrack,
   ParticipantEvent,
@@ -14,6 +15,8 @@ import {
   Track,
 } from "livekit-client";
 import {
+  combineLatest,
+  distinctUntilChanged,
   map,
   NEVER,
   type Observable,
@@ -30,6 +33,20 @@ import {
   trackProcessorSync,
 } from "../../../livekit/TrackProcessorContext.tsx";
 
+import {
+  applyMicProcessor,
+  micLevelWanted$,
+  MicProcessor,
+  syncBrowserNoiseSuppression,
+} from "../../../livekit/MicProcessor.ts";
+import {
+  getMicProcessing,
+  observeMicProcessing,
+  shouldProcessMic,
+  wantsBrowserNoiseSuppression,
+} from "../../MicProcessing.ts";
+import { observeMicTuning } from "../../MicTuning.ts";
+import { noiseSuppressionSetting } from "../../../settings/settings.ts";
 import { observeTrackReference$ } from "../../observeTrackReference";
 import { type Connection } from "../remoteMembers/Connection.ts";
 import { ObservableScope } from "../../ObservableScope.ts";
@@ -48,6 +65,11 @@ export class Publisher {
   public shouldPublish = false;
 
   private readonly scope = new ObservableScope();
+  private readonly micProcessor = new MicProcessor(
+    observeMicProcessing(),
+    undefined,
+    observeMicTuning(),
+  );
 
   /**
    * Creates a new Publisher.
@@ -75,6 +97,7 @@ export class Publisher {
 
     // Setup track processor syncing (blur)
     this.observeTrackProcessors(this.scope, room, trackerProcessorState$);
+    this.observeMicProcessing(this.scope, room);
     // Observe media device changes and update LiveKit active devices accordingly
     this.observeMediaDevices(this.scope, devices, controlledAudioDevices);
 
@@ -99,6 +122,7 @@ export class Publisher {
     } catch (e) {
       this.logger.error(`Failed to stop tracks: ${e}`);
     }
+    await this.micProcessor.destroy();
   }
 
   // LiveKit will publish the tracks as soon as they are created
@@ -441,5 +465,51 @@ export class Publisher {
       null,
     );
     trackProcessorSync(scope, track$, trackerProcessorState$);
+  }
+
+  private observeMicProcessing(
+    scope: ObservableScope,
+    room: LivekitRoom,
+  ): void {
+    const track$ = scope.behavior(
+      observeTrackReference$(
+        room.localParticipant,
+        Track.Source.Microphone,
+      ).pipe(
+        map((trackRef) => {
+          const track = trackRef?.publication.track;
+          return track instanceof LocalAudioTrack ? track : null;
+        }),
+      ),
+      null,
+    );
+    const mic$ = scope.behavior(observeMicProcessing(), getMicProcessing());
+
+    combineLatest([track$, mic$, micLevelWanted$])
+      .pipe(scope.bind())
+      .subscribe(([track, mic, levelWanted]) => {
+        if (!track) return;
+        applyMicProcessor(
+          track,
+          shouldProcessMic(mic, levelWanted) ? this.micProcessor : undefined,
+        );
+      });
+
+    combineLatest([
+      track$,
+      mic$.pipe(
+        map((mic) =>
+          wantsBrowserNoiseSuppression(noiseSuppressionSetting.getValue(), mic),
+        ),
+        distinctUntilChanged(),
+      ),
+    ])
+      .pipe(scope.bind())
+      .subscribe(([track, wanted]) => {
+        if (!track) return;
+        syncBrowserNoiseSuppression(track, wanted).catch((e) => {
+          this.logger.warn("Failed to update browser noise suppression", e);
+        });
+      });
   }
 }

@@ -114,6 +114,34 @@ describe("computeSpotlight", () => {
       }),
     ).toEqual({ spotlight: [local], pip: undefined });
   });
+
+  it("spotlights a focused user's screen share over everything but ringing", () => {
+    const bobShare = {
+      type: "screen share",
+      local: false,
+    } as ScreenShareViewModel;
+    expect(
+      computeSpotlight({
+        ringing: null,
+        screenShares: [screenShare, bobShare],
+        speaker: alice,
+        localPip: local,
+        focus: { media: bob, screenShares: [bobShare] },
+      }),
+    ).toEqual({ spotlight: [bobShare], pip: bob });
+  });
+
+  it("spotlights a focused user's camera when they aren't sharing", () => {
+    expect(
+      computeSpotlight({
+        ringing: null,
+        screenShares: [screenShare],
+        speaker: alice,
+        localPip: local,
+        focus: { media: bob, screenShares: [] },
+      }),
+    ).toEqual({ spotlight: [bob], pip: local });
+  });
 });
 
 describe("computeLayoutMedia", () => {
@@ -209,12 +237,18 @@ describe("computeLayoutMedia", () => {
     });
   });
 
-  it("uses the PiP layout, edge to edge except on desktop", () => {
+  it("uses the PiP layout, edge to edge and spotlight only except on desktop", () => {
     expect(layout({ windowMode: "pip" })).toEqual({
       type: "pip",
       edgeToEdge: true,
       spotlight: [alice],
+      grid: [],
     });
-    expect(layout({ windowMode: "pip", desktop: true }).edgeToEdge).toBe(false);
+    expect(layout({ windowMode: "pip", desktop: true })).toEqual({
+      type: "pip",
+      edgeToEdge: false,
+      spotlight: [alice],
+      grid: [local, alice, bob],
+    });
   });
 });

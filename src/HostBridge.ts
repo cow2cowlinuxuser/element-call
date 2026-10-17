@@ -35,6 +35,51 @@ export type DeviceMuteState = {
 export type DeviceMuteRequest = {
   audio_enabled?: boolean;
   video_enabled?: boolean;
+  deafened?: boolean;
+};
+
+/** Someone in the call, as Element Call reports them to its host. */
+export type CallParticipant = {
+  /** An opaque identifier, distinguishing one device of a user from another. */
+  id: string;
+  user_id: string;
+  display_name: string;
+  local: boolean;
+  speaking: boolean;
+  audio_enabled: boolean;
+  video_enabled: boolean;
+  screen_sharing: boolean;
+  playback_muted?: boolean;
+};
+
+export type CallParticipantsState = {
+  participants: CallParticipant[];
+};
+
+/**
+ * A request from the host to show a particular user in the spotlight. A null
+ * user ID returns the spotlight to following whoever is speaking.
+ */
+export type FocusParticipantRequest = {
+  user_id: string | null;
+};
+
+/**
+ * A request from the host to adjust a remote participant's playback audio.
+ */
+export type ParticipantAudioRequest = {
+  user_id: string;
+  muted?: boolean;
+  volume?: number;
+  pan?: number;
+  bass?: number;
+  mid?: number;
+  treble?: number;
+  reset?: boolean;
+};
+
+export type TileOverlayState = {
+  open: boolean;
 };
 
 /**
@@ -76,6 +121,15 @@ export interface HostBridge {
   /** Tells the host the user's current audio and video mute state. */
   notifyDeviceMute(state: DeviceMuteState): Promise<void>;
   /**
+   * Tells the host who is in the call and what they are doing, so that it can
+   * show this outside of Element Call. Absent when the host has no use for it.
+   */
+  notifyParticipants?(state: CallParticipantsState): Promise<void>;
+  /**
+   * Tells the host when a tile's floating overlay is opened or closed.
+   */
+  notifyTileOverlay?(state: TileOverlayState): Promise<void>;
+  /**
    * Asks the host to close Element Call, and stops communicating with it. No
    * further calls should be made on this bridge afterwards.
    *
@@ -95,6 +149,14 @@ export interface HostBridge {
   hangUp$: Observable<HostRequest<Record<string, never>>>;
   /** The host wants to change, or read back, the device mute state. */
   deviceMute$: Observable<HostRequest<DeviceMuteRequest, DeviceMuteState>>;
+  /** The host wants a particular user shown in the spotlight. */
+  focusParticipant$?: Observable<HostRequest<FocusParticipantRequest>>;
+  /** The host wants to adjust a remote participant's playback audio. */
+  participantAudio$?: Observable<HostRequest<ParticipantAudioRequest>>;
+  /** The host wants to toggle screen sharing in the call. */
+  screenShare$?: Observable<HostRequest<Record<string, never>>>;
+  /** The host wants to open or close the floating tile overlay. */
+  tileOverlay$?: Observable<HostRequest<TileOverlayState>>;
 
   // What the host is, and is capable of.
 
@@ -184,6 +246,10 @@ export function createWidgetHostBridge(widget: WidgetHelpers): HostBridge {
     notifyHungUp: async () => send(ElementWidgetActions.HangupCall),
     notifyDeviceMute: async (state) =>
       send(ElementWidgetActions.DeviceMute, state),
+    notifyParticipants: async (state) =>
+      send(ElementWidgetActions.CallParticipants, state),
+    notifyTileOverlay: async (state) =>
+      send(ElementWidgetActions.TileOverlay, state),
     close: async () => {
       try {
         await send(ElementWidgetActions.Close);
@@ -198,6 +264,10 @@ export function createWidgetHostBridge(widget: WidgetHelpers): HostBridge {
     join$: requests(ElementWidgetActions.JoinCall),
     hangUp$: requests(ElementWidgetActions.HangupCall),
     deviceMute$: requests(ElementWidgetActions.DeviceMute),
+    focusParticipant$: requests(ElementWidgetActions.FocusParticipant),
+    participantAudio$: requests(ElementWidgetActions.ParticipantAudio),
+    screenShare$: requests(ElementWidgetActions.ScreenShare),
+    tileOverlay$: requests(ElementWidgetActions.TileOverlay),
     // The client we are a widget of signed the user in, so the profile is its
     // to manage
     supportsProfileChanges: false,

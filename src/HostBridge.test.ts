@@ -87,6 +87,30 @@ describe("createWidgetHostBridge", () => {
         { audio_enabled: true, video_enabled: false },
       );
     });
+
+    test("sends who is in the call", async () => {
+      const transport = mockTransport();
+      const bridge = createWidgetHostBridge(mockWidget({ transport } as never));
+      const participants = [
+        {
+          id: "@alice:example.org:DEVICE:0",
+          user_id: "@alice:example.org",
+          display_name: "Alice",
+          local: false,
+          speaking: true,
+          audio_enabled: true,
+          video_enabled: false,
+          screen_sharing: false,
+        },
+      ];
+
+      await bridge.notifyParticipants!({ participants });
+
+      expect(transport.send).toHaveBeenCalledWith(
+        ElementWidgetActions.CallParticipants,
+        { participants },
+      );
+    });
   });
 
   describe("relaying what the host asks for", () => {
@@ -118,6 +142,11 @@ describe("createWidgetHostBridge", () => {
         "deviceMute$",
         (bridge) => bridge.deviceMute$,
         ElementWidgetActions.DeviceMute,
+      ],
+      [
+        "focusParticipant$",
+        (bridge) => bridge.focusParticipant$!,
+        ElementWidgetActions.FocusParticipant,
       ],
     ];
 

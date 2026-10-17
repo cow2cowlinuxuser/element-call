@@ -5,8 +5,24 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
-import { type FC, type JSX, type Ref, useMemo } from "react";
+import {
+  type FC,
+  type JSX,
+  type Ref,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import classNames from "classnames";
+import { Button as CpdButton, Tooltip } from "@vector-im/compound-web";
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  OverflowHorizontalIcon,
+} from "@vector-im/compound-design-tokens/assets/web/icons";
+import { useTranslation } from "react-i18next";
 
 import LogoMark from "../icons/LogoMark.svg?react";
 import LogoType from "../icons/LogoType.svg?react";
@@ -26,6 +42,7 @@ import {
   MediaMuteAndSwitchButton,
   type MenuOptions,
 } from "./MediaMuteAndSwitchButton";
+import { VoiceProcessingButton } from "./VoiceProcessingButton";
 import { type Behavior } from "../state/Behavior";
 import { type ViewModel } from "../state/ViewModel";
 import { useBehavior } from "../useBehavior";
@@ -155,8 +172,45 @@ export const CallFooter: FC<FooterProps> = ({
   const videoBlurEnabled = useBehavior(vm.videoBlurEnabled$);
   const buttonSize = useBehavior(vm.buttonSize$);
   const showLogo = useBehavior(vm.showLogo$);
+  const { t } = useTranslation();
+  const [trayOpen, setTrayOpen] = useState(false);
+  const trayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!trayOpen) return;
+    const onPointerDown = (e: PointerEvent): void => {
+      const target = e.target as Element | null;
+      if (!target) return;
+      if (trayRef.current?.contains(target)) return;
+      // Don't close the tray when interacting with a portalled Radix menu or modal
+      // opened from one of the buttons inside the tray.
+      if (
+        target.closest(
+          '[role="menu"], [role="dialog"], [data-radix-popper-content-wrapper]',
+        )
+      ) {
+        return;
+      }
+      setTrayOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setTrayOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return (): void => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [trayOpen]);
+
+  const openSettingsFromTray = useCallback(() => {
+    setTrayOpen(false);
+    openSettings?.();
+  }, [openSettings]);
 
   const buttons: JSX.Element[] = [];
+  const trayButtons: JSX.Element[] = [];
 
   if (openSettings !== undefined) {
     // Add the settings button to the center group so it's visible on small
@@ -170,10 +224,18 @@ export const CallFooter: FC<FooterProps> = ({
         data-testid="settings-bottom-center"
       />,
     );
+    trayButtons.push(
+      <SettingsButton
+        key="tray-settings"
+        size="md"
+        onClick={openSettingsFromTray}
+        data-testid="settings-tray"
+      />,
+    );
   }
 
   if ((audioOptions?.length ?? 0) > 0) {
-    buttons.push(
+    const audioEl = (
       <MediaMuteAndSwitchButton
         key="audio"
         iconsAndLabels="audio"
@@ -187,10 +249,12 @@ export const CallFooter: FC<FooterProps> = ({
         outputOptions={audioOutputOptions}
         selectedOutputOption={selectedAudioOutput}
         onSelectOutput={selectAudioOutputOption}
-      />,
+      />
     );
+    buttons.push(audioEl);
+    trayButtons.push(audioEl);
   } else {
-    buttons.push(
+    const micEl = (
       <MicButton
         size={buttonSize}
         key="audio"
@@ -199,12 +263,22 @@ export const CallFooter: FC<FooterProps> = ({
         onClick={toggleAudio}
         disabled={(audioBusy ?? false) || toggleAudio === undefined}
         data-testid="incall_mute"
-      />,
+      />
     );
+    buttons.push(micEl);
+    trayButtons.push(micEl);
+  }
+
+  if (showModals && toggleAudio !== undefined) {
+    const vpEl = (
+      <VoiceProcessingButton key="voice_processing" size={buttonSize} />
+    );
+    buttons.push(vpEl);
+    trayButtons.push(vpEl);
   }
 
   if ((videoOptions?.length ?? 0) > 0) {
-    buttons.push(
+    const videoEl = (
       <MediaMuteAndSwitchButton
         key="video"
         iconsAndLabels="video"
@@ -216,10 +290,12 @@ export const CallFooter: FC<FooterProps> = ({
         onSelect={selectVideoButtonOption}
         videoBlurToggleClick={toggleBlur}
         videoBlurEnabled={videoBlurEnabled}
-      />,
+      />
     );
+    buttons.push(videoEl);
+    trayButtons.push(videoEl);
   } else {
-    buttons.push(
+    const camEl = (
       <VideoButton
         size={buttonSize}
         key="video"
@@ -228,8 +304,10 @@ export const CallFooter: FC<FooterProps> = ({
         onClick={toggleVideo}
         disabled={(videoBusy ?? false) || toggleVideo === undefined}
         data-testid="incall_videomute"
-      />,
+      />
     );
+    buttons.push(camEl);
+    trayButtons.push(camEl);
   }
 
   if (toggleScreenSharing !== undefined) {
@@ -241,6 +319,15 @@ export const CallFooter: FC<FooterProps> = ({
         enabled={sharingScreen ?? false}
         onClick={toggleScreenSharing}
         data-testid="incall_screenshare"
+      />,
+    );
+    trayButtons.push(
+      <ShareScreenButton
+        size="md"
+        key="tray_share_screen"
+        enabled={sharingScreen ?? false}
+        onClick={toggleScreenSharing}
+        data-testid="incall_screenshare_tray"
       />,
     );
   }
@@ -256,6 +343,14 @@ export const CallFooter: FC<FooterProps> = ({
         identifier={reactionIdentifier}
       />,
     );
+    trayButtons.push(
+      <ReactionToggleButton
+        size="md"
+        reactionData={reactionData}
+        key="tray_raise_hand"
+        identifier={reactionIdentifier}
+      />,
+    );
   }
 
   // In this PR we just move the button to the bottom bar. We do not yet update its appearance
@@ -263,6 +358,7 @@ export const CallFooter: FC<FooterProps> = ({
     if (audioOutputSwitcher === undefined) return null;
     return (
       <LoudspeakerButton
+        key="loudspeaker"
         size={buttonSize}
         onClick={() => audioOutputSwitcher.switch()}
         loudspeakerModeEnabled={audioOutputSwitcher.targetOutput === "earpiece"}
@@ -270,17 +366,22 @@ export const CallFooter: FC<FooterProps> = ({
     );
   }, [audioOutputSwitcher, buttonSize]);
 
-  if (audioOutputButton) buttons.push(audioOutputButton);
+  if (audioOutputButton) {
+    buttons.push(audioOutputButton);
+    trayButtons.push(audioOutputButton);
+  }
 
-  if (hangup)
-    buttons.push(
+  if (hangup) {
+    const endEl = (
       <EndCallButton
         size={buttonSize}
         key="end_call"
         onClick={hangup}
         data-testid="incall_leave"
-      />,
+      />
     );
+    buttons.push(endEl);
+  }
 
   const logoDebugContainer = (
     <div className={styles.logo}>
@@ -323,6 +424,63 @@ export const CallFooter: FC<FooterProps> = ({
         {(showLogo || debugTileLayout) && logoDebugContainer}
       </div>
       {!hideControls && <div className={styles.buttons}>{buttons}</div>}
+      {!hideControls && (
+        <div
+          ref={trayRef}
+          className={styles.compactBar}
+          data-testid="compact-footer-bar"
+        >
+          {trayOpen && (
+            <div
+              className={styles.compactPopover}
+              data-testid="compact-controls-popover"
+              role="toolbar"
+              aria-label={t("common.options")}
+            >
+              <div className={styles.compactPopoverGrid}>{trayButtons}</div>
+              {layoutSwitchVm && (
+                <div className={styles.compactPopoverLayout}>
+                  <LayoutSwitch vm={layoutSwitchVm} />
+                </div>
+              )}
+            </div>
+          )}
+          <div className={styles.compactTriggerRow}>
+            <Tooltip label={trayOpen ? t("action.close") : t("common.options")}>
+              <CpdButton
+                iconOnly
+                Icon={trayOpen ? ChevronDownIcon : ChevronUpIcon}
+                kind={trayOpen ? "primary" : "secondary"}
+                size="md"
+                aria-label={t("common.options")}
+                aria-expanded={trayOpen}
+                onClick={() => setTrayOpen((prev) => !prev)}
+                data-testid="compact-controls-trigger"
+              />
+            </Tooltip>
+            {openSettings !== undefined && (
+              <Tooltip label={t("common.settings")}>
+                <CpdButton
+                  iconOnly
+                  Icon={OverflowHorizontalIcon}
+                  kind="secondary"
+                  size="md"
+                  aria-label={t("common.settings")}
+                  onClick={openSettings}
+                  data-testid="compact-settings-button"
+                />
+              </Tooltip>
+            )}
+            {hangup && (
+              <EndCallButton
+                size="md"
+                onClick={hangup}
+                data-testid="compact-hangup-button"
+              />
+            )}
+          </div>
+        </div>
+      )}
       {!hideControls && layoutSwitchVm && (
         <LayoutSwitch vm={layoutSwitchVm} className={styles.layout} />
       )}

@@ -1,0 +1,99 @@
+/*
+Copyright 2026 Element Creations Ltd.
+
+SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+Please see LICENSE in the repository root for full details.
+*/
+
+.control {
+  margin-block: var(--cpd-space-2x) var(--cpd-space-4x);
+}
+
+.control > label {
+  display: block;
+  margin-block-end: var(--cpd-space-1x);
+}
+
+.value {
+  font-weight: normal;
+  color: var(--cpd-color-text-secondary);
+}
+
+.equaliser {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-2x);
+  max-inline-size: 24em;
+}
+
+.problem {
+  color: var(--cpd-color-text-critical-primary);
+}
+
+.meter {
+  position: relative;
+  block-size: var(--cpd-space-2x);
+  max-inline-size: 24em;
+  border-radius: var(--cpd-space-1x);
+  background: var(--cpd-color-bg-subtle-secondary);
+  overflow: hidden;
+}
+
+.meterFill {
+  block-size: 100%;
+  background: var(--cpd-color-bg-success-pressed);
+  transition: inline-size 50ms linear;
+}
+
+.meterFill.closed {
+  background: var(--cpd-color-icon-tertiary);
+}
+
+.meterThreshold {
+  position: absolute;
+  inset-block: 0;
+  inline-size: 2px;
+  background: var(--cpd-color-text-primary);
+}
+
+.tuningGroup {
+  margin-block: var(--cpd-space-4x);
+  max-inline-size: 28em;
+}
+
+.tuningGroup > h5 {
+  margin-block: 0 var(--cpd-space-2x);
+}
+
+.hint {
+  font: var(--cpd-font-body-sm-regular);
+  color: var(--cpd-color-text-secondary);
+}
+
+.transfer {
+  box-sizing: border-box;
+  inline-size: 100%;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--cpd-color-text-primary);
+  background: var(--cpd-color-bg-subtle-secondary);
+  border: 1px solid var(--cpd-color-border-interactive-secondary);
+  border-radius: var(--cpd-space-2x);
+  padding: var(--cpd-space-2x);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cpd-space-2x);
+  margin-block-start: var(--cpd-space-2x);
+}
+
+.advanced {
+  margin-block-start: var(--cpd-space-6x);
+}
+
+.advanced > summary {
+  cursor: pointer;
+  font: var(--cpd-font-body-md-semibold);
+}

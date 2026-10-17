@@ -157,7 +157,8 @@ export interface OneOnOnePortraitLayoutSummary {
 
 export interface PipLayoutSummary {
   type: "pip";
-  spotlight: string[];
+  spotlight?: string[];
+  grid: string[];
 }
 
 export type LayoutSummary =
@@ -228,11 +229,16 @@ function summarizeLayout$(l$: Observable<Layout>): Observable<LayoutSummary> {
             }),
           );
         case "pip":
-          return l.spotlight.media$.pipe(
-            map((spotlight) => ({
+          return combineLatest(
+            [
+              l.spotlight?.media$ ?? constant(undefined),
+              ...l.grid.map((vm) => vm.media$),
+            ],
+            (spotlight, ...grid) => ({
               type: l.type,
-              spotlight: spotlight.map((vm) => vm.id),
-            })),
+              spotlight: spotlight?.map((vm) => vm.id),
+              grid: grid.map((vm) => vm.id),
+            }),
           );
       }
     }),
@@ -774,9 +780,11 @@ describe.each(modes)("CallViewModel (%s mode)", (mode) => {
                 spotlight: `${aliceId}:0`,
               },
               c: {
-                // In a PiP-sized window, we of course expect a PiP layout
+                // In a PiP-sized window, we of course expect a PiP layout,
+                // showing everyone as miniature tiles on desktop
                 type: "pip",
-                spotlight: [`${aliceId}:0`],
+                spotlight: undefined,
+                grid: [`${localId}:0`, `${aliceId}:0`],
               },
             },
           );
@@ -896,13 +904,41 @@ describe.each(modes)("CallViewModel (%s mode)", (mode) => {
               },
               b: {
                 type: "pip",
-                spotlight: [`${aliceId}:0`],
+                spotlight: undefined,
+                grid: [`${localId}:0`, `${aliceId}:0`, `${bobId}:0`],
               },
             },
           );
         },
       );
     });
+  });
+
+  test("picture-in-picture shows only the spotlight on mobile", () => {
+    getPlatform.mockReturnValue("android");
+    try {
+      withTestScheduler(({ schedule, expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          },
+          (vm) => {
+            schedule("-e", { e: () => window.controls.enablePip() });
+            expectObservable(summarizeLayout$(vm.layout$)).toBe("ab", {
+              a: {
+                type: "one-on-one-desktop",
+                spotlight: `${aliceId}:0`,
+                pip: `${localId}:0`,
+              },
+              b: { type: "pip", spotlight: [`${aliceId}:0`], grid: [] },
+            });
+          },
+        );
+      });
+    } finally {
+      getPlatform.mockReturnValue("desktop");
+    }
   });
 
   // Test cases for footer visibility in PIP mode across different platforms

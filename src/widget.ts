@@ -44,6 +44,18 @@ export enum ElementWidgetActions {
   //   video_enabled?: boolean
   // }
   DeviceMute = "io.element.device_mute",
+  // fromWidget: tells the client who is in the call, so it can show them
+  // outside of the call view. Data: { participants: CallParticipant[] }
+  CallParticipants = "io.element.call_participants",
+  // toWidget: the client asks for a user to be shown in the spotlight.
+  // Data: { user_id: string | null }
+  FocusParticipant = "io.element.focus_participant",
+  // toWidget: the client adjusts how a remote participant sounds (mute, volume, pan, EQ).
+  ParticipantAudio = "io.element.participant_audio",
+  // toWidget: the client toggles screen sharing in the active call.
+  ScreenShare = "io.element.screen_share",
+  // fromWidget / toWidget: notifies or updates whether a floating tile overlay is open.
+  TileOverlay = "io.element.tile_overlay",
 }
 
 export interface JoinCallData {
@@ -104,6 +116,10 @@ export const initializeWidget = (
         ElementWidgetActions.JoinCall,
         ElementWidgetActions.HangupCall,
         ElementWidgetActions.DeviceMute,
+        ElementWidgetActions.FocusParticipant,
+        ElementWidgetActions.ParticipantAudio,
+        ElementWidgetActions.ScreenShare,
+        ElementWidgetActions.TileOverlay,
       ].forEach((action) => {
         api.on(`action:${action}`, (ev: CustomEvent<IWidgetApiRequest>) => {
           ev.preventDefault();

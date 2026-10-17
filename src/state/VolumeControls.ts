@@ -35,6 +35,7 @@ interface VolumeControlsInputs {
    * requested volume.
    */
   sink$: Behavior<(volume: number) => void>;
+  initialVolume?: number;
 }
 
 /**
@@ -43,7 +44,7 @@ interface VolumeControlsInputs {
  */
 export function createVolumeControls(
   scope: ObservableScope,
-  { pretendToBeDisconnected$, sink$ }: VolumeControlsInputs,
+  { pretendToBeDisconnected$, sink$, initialVolume = 1 }: VolumeControlsInputs,
 ): VolumeControls {
   const toggleMuted$ = new Subject<"toggle mute">();
   const adjustVolume$ = new Subject<number>();
@@ -51,27 +52,30 @@ export function createVolumeControls(
 
   const playbackVolume$ = scope.behavior<number>(
     merge(toggleMuted$, adjustVolume$, commitVolume$).pipe(
-      accumulate({ volume: 1, committedVolume: 1 }, (state, event) => {
-        switch (event) {
-          case "toggle mute":
-            return {
-              ...state,
-              volume: state.volume === 0 ? state.committedVolume : 0,
-            };
-          case "commit":
-            // Dragging the slider to zero should have the same effect as
-            // muting: keep the original committed volume, as if it were never
-            // dragged
-            return {
-              ...state,
-              committedVolume:
-                state.volume === 0 ? state.committedVolume : state.volume,
-            };
-          default:
-            // Volume adjustment
-            return { ...state, volume: event };
-        }
-      }),
+      accumulate(
+        { volume: initialVolume, committedVolume: initialVolume },
+        (state, event) => {
+          switch (event) {
+            case "toggle mute":
+              return {
+                ...state,
+                volume: state.volume === 0 ? state.committedVolume : 0,
+              };
+            case "commit":
+              // Dragging the slider to zero should have the same effect as
+              // muting: keep the original committed volume, as if it were never
+              // dragged
+              return {
+                ...state,
+                committedVolume:
+                  state.volume === 0 ? state.committedVolume : state.volume,
+              };
+            default:
+              // Volume adjustment
+              return { ...state, volume: event };
+          }
+        },
+      ),
       map(({ volume }) => volume),
     ),
   );

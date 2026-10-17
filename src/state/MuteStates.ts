@@ -25,6 +25,7 @@ import { type MediaDevices, type MediaDevice } from "../state/MediaDevices";
 import { type DeviceMuteState, type HostBridge } from "../HostBridge";
 import { type ObservableScope } from "./ObservableScope";
 import { type Behavior, constant } from "./Behavior";
+import { muteAllAudio as muteAllAudioSetting } from "../settings/settings";
 
 interface MuteStateData {
   enabled$: Observable<boolean>;
@@ -257,6 +258,9 @@ export class MuteStates {
         ) {
           newState.video_enabled = request.data.video_enabled;
           setVideoEnabled(newState.video_enabled);
+        }
+        if (typeof request.data.deafened === "boolean") {
+          muteAllAudioSetting.setValue(request.data.deafened);
         }
         request.reply(newState);
       });

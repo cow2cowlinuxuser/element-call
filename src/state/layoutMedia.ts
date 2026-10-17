@@ -61,6 +61,14 @@ export interface SpotlightInputs {
   speaker: UserMediaViewModel | undefined;
   /** Local user media suitable for showing in a PiP, if any. */
   localPip: UserMediaViewModel | undefined;
+  /** A user that the host asked to show in the spotlight, if any. */
+  focus?: SpotlightFocus;
+}
+
+export interface SpotlightFocus {
+  media: UserMediaViewModel;
+  /** The focused user's screen shares, which take priority over their camera. */
+  screenShares: ScreenShareViewModel[];
 }
 
 /**
@@ -72,11 +80,18 @@ export function computeSpotlight({
   screenShares,
   speaker,
   localPip,
+  focus,
 }: SpotlightInputs): {
   spotlight: MediaViewModel[];
   pip: UserMediaViewModel | undefined;
 } {
   if (ringing !== null) return { spotlight: [ringing], pip: localPip };
+  if (focus !== undefined) {
+    if (focus.screenShares.length > 0)
+      return { spotlight: focus.screenShares, pip: focus.media };
+    speaker = focus.media;
+    screenShares = [];
+  }
   if (screenShares.length > 0) return { spotlight: screenShares, pip: speaker };
   return {
     spotlight: speaker ? [speaker] : [],
@@ -142,7 +157,14 @@ export function computeLayoutMedia({
         ? spotlightLandscapeLayoutMedia(true, spotlight, grid)
         : spotlightExpandedLayoutMedia(true, spotlight, pip);
     case "pip":
-      return { type: "pip", edgeToEdge: !desktop, spotlight };
+      return {
+        type: "pip",
+        edgeToEdge: !desktop,
+        spotlight,
+        // On desktop the PiP has room to show everyone, which lets the user
+        // see who (including themselves) is speaking at a glance
+        grid: desktop ? grid : [],
+      };
   }
 }
 

@@ -15,6 +15,7 @@ export default {
       "vite-sdk.config.ts",
       "vite-component.config.ts",
       "vite-component-dev.config.ts",
+      "vite-audio-lab.config.ts",
     ],
   },
   entry: ["src/main.tsx", "eslint/index.js", "i18next.config.ts"],

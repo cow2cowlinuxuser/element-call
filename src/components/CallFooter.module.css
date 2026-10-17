@@ -71,7 +71,67 @@ Please see LICENSE in the repository root for full details.
   grid-area: buttons;
   justify-self: center;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
   gap: var(--cpd-space-3x);
+}
+
+.compactBar {
+  grid-area: buttons;
+  justify-self: center;
+  position: relative;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  inline-size: 100%;
+}
+
+.compactTriggerRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cpd-space-2x);
+  padding: var(--cpd-space-1-5x) var(--cpd-space-3x);
+  border-radius: 999px;
+  background: var(--cpd-color-bg-subtle-secondary);
+  border: 1px solid var(--cpd-color-border-interactive-secondary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.compactPopover {
+  position: absolute;
+  inset-block-end: calc(100% + var(--cpd-space-3x));
+  inset-inline: 0;
+  margin-inline: auto;
+  max-inline-size: min(100%, 280px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cpd-space-2-5x);
+  padding: var(--cpd-space-3x);
+  border-radius: var(--cpd-space-4x);
+  background: var(--cpd-color-bg-canvas-default);
+  border: 1px solid var(--cpd-color-border-interactive-primary);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  z-index: calc(var(--call-view-header-footer-layer, 10) + 5);
+}
+
+.compactPopoverGrid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--cpd-space-2x);
+  inline-size: 100%;
+}
+
+.compactPopoverLayout {
+  display: flex;
+  justify-content: center;
+  inline-size: 100%;
+  padding-block-start: var(--cpd-space-2x);
+  border-top: 1px solid var(--cpd-color-border-interactive-secondary);
 }
 
 .layout {
@@ -94,27 +154,26 @@ Please see LICENSE in the repository root for full details.
 }
 
 /*
-With the logo hidden >500px is enough space to show overflow, buttons, layout.
-Once we exceed 500 we hide everything except the buttons.
+When the call pane is narrower than 560px, collapse the full horizontal row
+into the compact popout tray button so controls never overflow or clip.
 */
-@container element-call (max-width: 500px) {
+@container element-call (max-width: 560px) {
   .footer {
-    grid-template-areas: "buttons buttons buttons";
+    grid-template-columns: 1fr;
+    grid-template-areas: "buttons";
+    padding-inline: var(--cpd-space-3x);
+    padding-block: var(--cpd-space-3x)
+      calc(env(safe-area-inset-bottom) + var(--cpd-space-3x));
   }
 
-  .settingsOnlyShowNarrow {
-    display: inherit;
-  }
-  .settingsOnlyShowWide {
-    display: none;
-  }
-
-  .settingsLogoContainer {
-    display: none;
-  }
-
+  .buttons,
+  .settingsLogoContainer,
   .layout {
     display: none !important;
+  }
+
+  .compactBar {
+    display: flex;
   }
 }
 

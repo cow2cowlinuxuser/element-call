@@ -51,6 +51,7 @@ import { type RemoteUserMediaViewModel } from "../state/media/RemoteUserMediaVie
 import { type UserMediaViewModel } from "../state/media/UserMediaViewModel";
 import { type RingingMediaViewModel } from "../state/media/RingingMediaViewModel";
 import { RingingStatus } from "./RingingStatus";
+import { PeerAudioMenuItems } from "./PeerAudioMenuItems";
 
 interface TileProps {
   ref?: Ref<HTMLDivElement>;
@@ -396,6 +397,7 @@ const RemoteUserMediaTile: FC<RemoteUserMediaTileProps> = ({
               step={0.01}
             />
           </MenuItem>
+          <PeerAudioMenuItems vm={vm} />
         </>
       }
       focusUrl={focusUrl}

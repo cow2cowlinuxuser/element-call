@@ -12,6 +12,9 @@ import { PosthogAnalytics } from "../analytics/PosthogAnalytics";
 import { type Behavior } from "../state/Behavior";
 import { useBehavior } from "../useBehavior";
 import { MatrixRTCMode } from "../config/ConfigOptions";
+import { type PeerAudioSettings } from "../state/PeerAudio";
+import { type MicProcessing } from "../state/MicProcessing";
+import { type MicTuning } from "../livekit/MicProcessor";
 
 export class Setting<T> {
   public constructor(
@@ -135,6 +138,18 @@ export const soundEffectVolume = new Setting<number>(
 );
 
 export const muteAllAudio = new Setting<boolean>("mute-all-audio", false);
+
+/** Per Matrix user ID; see `src/state/PeerAudio.ts`. */
+export const peerAudio = new Setting<PeerAudioSettings>("peer-audio", {});
+
+/** See `src/state/MicProcessing.ts`. */
+export const micProcessing = new Setting<Partial<MicProcessing>>(
+  "mic-processing",
+  {},
+);
+
+/** See `src/state/MicTuning.ts`. */
+export const micTuning = new Setting<Partial<MicTuning>>("mic-tuning", {});
 
 export const alwaysShowSelf = new Setting<boolean>("always-show-self", true);
 

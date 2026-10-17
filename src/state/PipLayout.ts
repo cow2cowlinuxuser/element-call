@@ -16,18 +16,26 @@ export function pipLayout(
   media: PipLayoutMedia,
   prevTiles: TileStore,
 ): [PipLayout, TileStore] {
-  const update = prevTiles.from(0);
-  // Dont maximise in pip on EW since we want the rounded corners and the footer
-  update.registerSpotlight(
-    media.spotlight,
-    platform === "desktop" ? false : true,
-    "transparent",
-  );
+  const update = prevTiles.from(media.grid.length);
+  // The miniature tiles already show everyone's user media, so the spotlight
+  // is only worth the space when it has something else to show
+  if (
+    media.grid.length === 0 ||
+    media.spotlight.some((vm) => vm.type !== "user")
+  )
+    // Dont maximise in pip on EW since we want the rounded corners and the footer
+    update.registerSpotlight(
+      media.spotlight,
+      platform === "desktop" ? false : true,
+      "transparent",
+    );
+  for (const mediaVm of media.grid) update.registerGridTile(mediaVm);
   const tiles = update.build();
   return [
     {
       type: media.type,
-      spotlight: tiles.spotlightTile!,
+      spotlight: tiles.spotlightTile,
+      grid: tiles.gridTiles,
     },
     tiles,
   ];

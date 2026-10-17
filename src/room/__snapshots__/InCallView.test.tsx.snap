@@ -427,14 +427,92 @@ exports[`InCallView > rendering > renders 1`] = `
           </svg>
         </button>
       </div>
+      <div
+        class="_compactBar_20b7b4"
+        data-testid="compact-footer-bar"
+      >
+        <div
+          class="_compactTriggerRow_20b7b4"
+        >
+          <button
+            aria-expanded="false"
+            aria-label="Options"
+            aria-labelledby="_r_1c_"
+            class="_button_1nw83_8 _has-icon_1nw83_60 _icon-only_1nw83_53"
+            data-kind="secondary"
+            data-size="md"
+            data-testid="compact-controls-trigger"
+            role="button"
+            tabindex="0"
+          >
+            <svg
+              aria-hidden="true"
+              fill="currentColor"
+              height="20"
+              viewBox="0 0 24 24"
+              width="20"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="m12 10.775-3.9 3.9a.95.95 0 0 1-.7.275.95.95 0 0 1-.7-.275.95.95 0 0 1-.275-.7q0-.425.275-.7l4.6-4.6q.15-.15.325-.212Q11.8 8.4 12 8.4t.375.063a.9.9 0 0 1 .325.212l4.6 4.6a.95.95 0 0 1 .275.7.95.95 0 0 1-.275.7.95.95 0 0 1-.7.275.95.95 0 0 1-.7-.275z"
+              />
+            </svg>
+          </button>
+          <button
+            aria-label="Settings"
+            aria-labelledby="_r_1h_"
+            class="_button_1nw83_8 _has-icon_1nw83_60 _icon-only_1nw83_53"
+            data-kind="secondary"
+            data-size="md"
+            data-testid="compact-settings-button"
+            role="button"
+            tabindex="0"
+          >
+            <svg
+              aria-hidden="true"
+              fill="currentColor"
+              height="20"
+              viewBox="0 0 24 24"
+              width="20"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M6 14q-.824 0-1.412-.588A1.93 1.93 0 0 1 4 12q0-.825.588-1.412A1.93 1.93 0 0 1 6 10q.824 0 1.412.588Q8 11.175 8 12t-.588 1.412A1.93 1.93 0 0 1 6 14m6 0q-.825 0-1.412-.588A1.93 1.93 0 0 1 10 12q0-.825.588-1.412A1.93 1.93 0 0 1 12 10q.825 0 1.412.588Q14 11.175 14 12t-.588 1.412A1.93 1.93 0 0 1 12 14m6 0q-.824 0-1.413-.588A1.93 1.93 0 0 1 16 12q0-.825.587-1.412A1.93 1.93 0 0 1 18 10q.824 0 1.413.588Q20 11.175 20 12t-.587 1.412A1.93 1.93 0 0 1 18 14"
+              />
+            </svg>
+          </button>
+          <button
+            aria-labelledby="_r_1m_"
+            class="_button_1nw83_8 _has-icon_1nw83_60 _icon-only_1nw83_53 _destructive_1nw83_110"
+            data-kind="primary"
+            data-size="md"
+            data-testid="compact-hangup-button"
+            role="button"
+            tabindex="0"
+          >
+            <svg
+              aria-hidden="true"
+              fill="currentColor"
+              height="20"
+              viewBox="0 0 24 24"
+              width="20"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="m2.765 16.02-2.47-2.416A1.02 1.02 0 0 1 0 12.852q0-.456.295-.751a15.6 15.6 0 0 1 5.316-3.786A15.9 15.9 0 0 1 12 7q3.355 0 6.39 1.329a16 16 0 0 1 5.315 3.772q.295.294.295.751t-.295.752l-2.47 2.416a1.047 1.047 0 0 1-1.396.108l-3.114-2.363a1.1 1.1 0 0 1-.322-.376 1.1 1.1 0 0 1-.108-.483v-2.27a13.6 13.6 0 0 0-2.12-.524C13.459 9.996 12 9.937 12 9.937s-1.459.059-2.174.175q-1.074.174-2.121.523v2.271q0 .268-.108.483a1.1 1.1 0 0 1-.322.376l-3.114 2.363a1.047 1.047 0 0 1-1.396-.107"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
       <fieldset
         aria-label="Layout"
         class="_toggle_1t5ha_9 _layout_20b7b4"
         data-size="lg"
       >
         <input
-          aria-labelledby="_r_1d_"
-          name="_r_1c_"
+          aria-labelledby="_r_1s_"
+          name="_r_1r_"
           type="radio"
           value="spotlight"
         />
@@ -453,9 +531,9 @@ exports[`InCallView > rendering > renders 1`] = `
           />
         </svg>
         <input
-          aria-labelledby="_r_1i_"
+          aria-labelledby="_r_21_"
           checked=""
-          name="_r_1c_"
+          name="_r_1r_"
           type="radio"
           value="grid"
         />

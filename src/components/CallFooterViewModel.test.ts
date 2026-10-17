@@ -76,6 +76,7 @@ const gridLayout: Layout = {
 const pipLayout: Layout = {
   type: "pip",
   spotlight: {} as SpotlightTileViewModel,
+  grid: [],
 };
 
 const twoMicsAndOneCamMediaDevices = mockMediaDevices({

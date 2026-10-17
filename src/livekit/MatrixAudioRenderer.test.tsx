@@ -31,6 +31,7 @@ import {
 } from "../utils/test";
 import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
 import { initializeWidget } from "../widget";
+import { peerAudio } from "../settings/settings";
 initializeWidget();
 export const TestAudioContextConstructor = vi.fn(
   class {
@@ -49,6 +50,9 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  peerAudio.setValue({});
+  testAudioContext.pan.pan.value = 0;
+  testAudioContext.gain.gain.value = 1;
 });
 
 vi.mock("@livekit/components-react", async (importOriginal) => {
@@ -117,6 +121,12 @@ function renderTestComponent(
     <MediaDevicesProvider value={mockMediaDevices({})}>
       <LivekitRoomAudioRenderer
         validIdentities={participants.map((p) => p.identity)}
+        userIds={Object.fromEntries(
+          rtcMembers.map(({ userId, deviceId }) => [
+            `${userId}:${deviceId}`,
+            userId,
+          ]),
+        )}
         livekitRoom={livekitRoom}
         url={""}
       />
@@ -149,6 +159,7 @@ it("should not render or warn for the local participant", () => {
     <MediaDevicesProvider value={mockMediaDevices({})}>
       <LivekitRoomAudioRenderer
         validIdentities={[]}
+        userIds={{}}
         livekitRoom={{ remoteParticipants: new Map() } as unknown as Room}
         url={""}
       />
@@ -176,6 +187,7 @@ it("should warn only once per unexpected participant", () => {
     <MediaDevicesProvider value={mockMediaDevices({})}>
       <LivekitRoomAudioRenderer
         validIdentities={[]}
+        userIds={{}}
         livekitRoom={{ remoteParticipants: new Map() } as unknown as Room}
         url={""}
       />
@@ -339,3 +351,48 @@ it("should setup audioContext gain and pan", () => {
   expect(testAudioContext.gain.gain.value).toEqual(0.1);
   expect(testAudioContext.pan.pan.value).toEqual(1);
 });
+
+it("should play a member through their pan and equaliser settings", () => {
+  mockNeutralEarpiece();
+  peerAudio.setValue({ "@bob": { pan: -0.5, bass: 6, mid: -3, treble: 12 } });
+
+  renderTestComponent([{ userId: "@bob", deviceId: "DEV0" }], ["@bob:DEV0"]);
+
+  const audioTrack = tracks[0].publication.track! as RemoteAudioTrack;
+  expect(audioTrack.setAudioContext).toHaveBeenLastCalledWith(testAudioContext);
+  const [nodes] = vi.mocked(audioTrack.setWebAudioPlugins).mock.lastCall!;
+  expect(nodes).toHaveLength(5);
+  const [bass, mid, treble] = nodes as BiquadFilterNode[];
+  expect(bass).toMatchObject({ type: "lowshelf", gain: { value: 6 } });
+  expect(mid).toMatchObject({ type: "peaking", gain: { value: -3 } });
+  expect(treble).toMatchObject({ type: "highshelf", gain: { value: 12 } });
+  expect(testAudioContext.pan.pan.value).toEqual(-0.5);
+});
+
+it("should not apply member settings to their screen share audio", () => {
+  mockNeutralEarpiece();
+  peerAudio.setValue({ "@alice": { pan: 1, bass: 6 } });
+
+  renderTestComponent(
+    [{ userId: "@alice", deviceId: "DEV0" }],
+    ["@alice:DEV0"],
+    [
+      {
+        participantId: "@alice:DEV0",
+        kind: Track.Kind.Audio,
+        source: Track.Source.ScreenShareAudio,
+      },
+    ],
+  );
+
+  const audioTrack = tracks[0].publication.track! as RemoteAudioTrack;
+  expect(audioTrack.setAudioContext).toHaveBeenLastCalledWith(undefined);
+  expect(audioTrack.setWebAudioPlugins).toHaveBeenLastCalledWith([]);
+});
+
+function mockNeutralEarpiece(): void {
+  vi.spyOn(MediaDevicesContext, "useEarpieceAudioConfig").mockReturnValue({
+    pan: 0,
+    volume: 1,
+  });
+}

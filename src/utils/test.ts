@@ -536,6 +536,28 @@ export class MockRTCSession extends TypedEventEmitter<
   }
 }
 
+export interface FakeAudioParam {
+  value: number;
+  setValueAtTime: (value: number) => void;
+  setTargetAtTime: (value: number) => void;
+  cancelScheduledValues: () => void;
+}
+
+/** An AudioParam whose scheduled changes take effect at once. */
+export function fakeAudioParam(value: number): FakeAudioParam {
+  const param: FakeAudioParam = {
+    value,
+    setValueAtTime: vi.fn((v: number) => {
+      param.value = v;
+    }),
+    setTargetAtTime: vi.fn((v: number) => {
+      param.value = v;
+    }),
+    cancelScheduledValues: vi.fn(),
+  };
+  return param;
+}
+
 export const mockTrack = (
   participant: Participant,
   kind?: Track.Kind,
@@ -556,7 +578,7 @@ export const mockTrack = (
       },
     },
     track: {},
-    source: {},
+    source: source ?? Track.Source.Microphone,
   }) as unknown as TrackReference;
 
 export const deviceStub = {

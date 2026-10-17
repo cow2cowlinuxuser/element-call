@@ -8,6 +8,7 @@ Please see LICENSE in the repository root for full details.
 import { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
 import {
   ConnectionState as LivekitConnectionState,
+  LocalAudioTrack,
   LocalParticipant,
   type LocalTrack,
   type LocalTrackPublication,
@@ -27,6 +28,8 @@ import {
 import { Publisher } from "./Publisher";
 import { type Connection } from "../remoteMembers/Connection";
 import { type MuteStates } from "../../MuteStates";
+import { micProcessing } from "../../../settings/settings";
+import { micLevelWanted$, MicProcessor } from "../../../livekit/MicProcessor";
 
 let scope: ObservableScope;
 
@@ -346,6 +349,107 @@ describe("Publisher", () => {
 
   it("does mute unmute audio", async () => {});
 });
+
+describe("Voice processing", () => {
+  let publisher: Publisher;
+  let mic: LocalAudioTrack;
+
+  beforeEach(() => {
+    mic = createMockLocalAudioTrack();
+    vi.mocked(localParticipant).createTracks = vi.fn().mockResolvedValue([mic]);
+    publisher = new Publisher(
+      connection,
+      mockMediaDevices({}),
+      muteStates,
+      constant({ supported: false, processor: undefined }),
+      logger,
+      false,
+    );
+  });
+
+  afterEach(async () => {
+    await publisher.destroy();
+    micProcessing.setValue({});
+  });
+
+  async function startMicrophone(): Promise<void> {
+    audioEnabled$.next(true);
+    await publisher.createAndSetupTracks();
+    await flushPromises();
+  }
+
+  it("leaves the microphone alone by default", async () => {
+    await startMicrophone();
+    expect(mic.setProcessor).not.toHaveBeenCalled();
+    expect(mic.applyConstraints).not.toHaveBeenCalled();
+  });
+
+  it("runs the microphone through the processor while voice processing is on", async () => {
+    micProcessing.setValue({ gate: true });
+    await startMicrophone();
+    expect(mic.setProcessor).toHaveBeenCalledWith(expect.any(MicProcessor));
+
+    const processor = vi.mocked(mic.setProcessor).mock.calls[0][0];
+    vi.mocked(mic.getProcessor).mockReturnValue(processor);
+    micProcessing.setValue({});
+    expect(mic.stopProcessor).toHaveBeenCalled();
+  });
+
+  it("runs the processor while the microphone level is shown", async () => {
+    await startMicrophone();
+    micLevelWanted$.next(true);
+    try {
+      expect(mic.setProcessor).toHaveBeenCalledWith(expect.any(MicProcessor));
+    } finally {
+      micLevelWanted$.next(false);
+    }
+  });
+
+  it("sends the microphone untouched once voice processing is turned off", async () => {
+    micProcessing.setValue({ noiseReduction: true, bass: -5 });
+    await startMicrophone();
+    const processor = vi.mocked(mic.setProcessor).mock.calls[0][0];
+    vi.mocked(mic.getProcessor).mockReturnValue(processor);
+
+    micProcessing.setValue({ enabled: false, noiseReduction: true, bass: -5 });
+    micLevelWanted$.next(true);
+    try {
+      expect(mic.stopProcessor).toHaveBeenCalled();
+      expect(mic.setProcessor).toHaveBeenCalledOnce();
+    } finally {
+      micLevelWanted$.next(false);
+    }
+  });
+
+  it("turns off the browser's noise suppression for noise reduction", async () => {
+    await startMicrophone();
+    micProcessing.setValue({ noiseReduction: true });
+    await flushPromises();
+    expect(mic.applyConstraints).toHaveBeenCalledWith({
+      noiseSuppression: false,
+    });
+  });
+});
+
+function createMockLocalAudioTrack(): LocalAudioTrack {
+  const track = Object.create(LocalAudioTrack.prototype) as LocalAudioTrack;
+  const properties = {
+    ...createMockLocalTrack(Track.Source.Microphone),
+    getProcessor: vi.fn(() => undefined),
+    setProcessor: vi.fn().mockResolvedValue(undefined),
+    stopProcessor: vi.fn().mockResolvedValue(undefined),
+    applyConstraints: vi.fn().mockResolvedValue(undefined),
+    restartTrack: vi.fn().mockResolvedValue(undefined),
+    mediaStreamTrack: {
+      readyState: "live",
+      getSettings: (): MediaTrackSettings => ({ noiseSuppression: true }),
+    },
+  };
+  for (const [key, value] of Object.entries(properties)) {
+    Object.defineProperty(track, key, { value, writable: true });
+  }
+  return track;
+}
 
 describe("Bug fix", () => {
   // There is a race condition when creating and publishing tracks while the mute state changes.

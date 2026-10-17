@@ -28,6 +28,7 @@ import {
 import { PreferencesSettingsTab } from "./PreferencesSettingsTab";
 import { Slider } from "../Slider";
 import { DeviceSelection } from "./DeviceSelection";
+import { MicProcessingSettings } from "./MicProcessingSettings";
 import { useTrackProcessor } from "../livekit/TrackProcessorContext";
 import {
   DeveloperSettingsTab,
@@ -179,6 +180,10 @@ export const SettingsModal: FC<Props> = ({
               step={0.01}
             />
           </div>
+        </Form>
+        <Separator />
+        <Form>
+          <MicProcessingSettings />
         </Form>
       </>
     ),

@@ -18,9 +18,28 @@ import {
   createBaseUserMedia,
 } from "./UserMediaViewModel";
 import { type ObservableScope } from "../ObservableScope";
+import {
+  defaultPeerAudio,
+  observePeerAudio,
+  type PeerAudio,
+  peerAudioFor,
+  updatePeerAudio,
+} from "../PeerAudio";
+import { peerAudio as peerAudioSetting } from "../../settings/settings";
+
+/**
+ * Controls for how this member sounds to the user, remembered per Matrix user.
+ */
+export interface PeerAudioControls {
+  peerAudio$: Behavior<PeerAudio>;
+  adjustPeerAudio: (
+    changes: Partial<Pick<PeerAudio, "pan" | "bass" | "mid" | "treble">>,
+  ) => void;
+  resetPeerAudio: () => void;
+}
 
 export interface RemoteUserMediaViewModel
-  extends BaseUserMediaViewModel, VolumeControls {
+  extends BaseUserMediaViewModel, VolumeControls, PeerAudioControls {
   local: false;
   /**
    * Whether we are waiting for this user's LiveKit participant to exist. This
@@ -41,6 +60,7 @@ export function createRemoteUserMedia(
   scope: ObservableScope,
   { pretendToBeDisconnected$, ...inputs }: RemoteUserMediaInputs,
 ): RemoteUserMediaViewModel {
+  const { userId } = inputs;
   const baseUserMedia = createBaseUserMedia(scope, {
     ...inputs,
     statsType: "inbound-rtp",
@@ -60,14 +80,32 @@ export function createRemoteUserMedia(
     logger.info(`[RemoteUserMedia ${inputs.id}] waitingForMedia=${waiting}`);
   });
 
+  const volumeControls = createVolumeControls(scope, {
+    pretendToBeDisconnected$,
+    sink$: scope.behavior(
+      inputs.participant$.pipe(map((p) => (volume) => p?.setVolume(volume))),
+    ),
+    initialVolume: peerAudioFor(peerAudioSetting.getValue(), userId).volume,
+  });
+
+  const commitPlaybackVolume = (): void => {
+    volumeControls.commitPlaybackVolume();
+    const volume = volumeControls.playbackVolume$.value;
+    // Zero is a mute, which lasts only for this call
+    if (volume > 0) updatePeerAudio(userId, { volume });
+  };
+
   return {
     ...baseUserMedia,
-    ...createVolumeControls(scope, {
-      pretendToBeDisconnected$,
-      sink$: scope.behavior(
-        inputs.participant$.pipe(map((p) => (volume) => p?.setVolume(volume))),
-      ),
-    }),
+    ...volumeControls,
+    commitPlaybackVolume,
+    peerAudio$: scope.behavior(observePeerAudio(userId)),
+    adjustPeerAudio: (changes) => updatePeerAudio(userId, changes),
+    resetPeerAudio: (): void => {
+      updatePeerAudio(userId, defaultPeerAudio);
+      volumeControls.adjustPlaybackVolume(defaultPeerAudio.volume);
+      volumeControls.commitPlaybackVolume();
+    },
     local: false,
     speaking$: scope.behavior(
       pretendToBeDisconnected$.pipe(

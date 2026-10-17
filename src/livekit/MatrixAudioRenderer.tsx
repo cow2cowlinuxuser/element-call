@@ -5,7 +5,10 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
-import { getTrackReferenceId } from "@livekit/components-core";
+import {
+  getTrackReferenceId,
+  type TrackReference,
+} from "@livekit/components-core";
 import { type Room as LivekitRoom } from "livekit-client";
 import { type RemoteAudioTrack, Track } from "livekit-client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -18,7 +21,16 @@ import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
 
 import { useEarpieceAudioConfig } from "../MediaDevicesContext";
 import { useReactiveState } from "../useReactiveState";
+import { useBehavior } from "../useBehavior";
 import * as controls from "../controls";
+import { peerAudio as peerAudioSetting } from "../settings/settings";
+import {
+  defaultPeerAudio,
+  needsAudioProcessing,
+  type PeerAudio,
+  peerAudioFor,
+} from "../state/PeerAudio";
+import { applyPeerAudio, createPeerAudioChain } from "./PeerAudioChain";
 
 export interface MatrixAudioRendererProps {
   /**
@@ -32,6 +44,11 @@ export interface MatrixAudioRendererProps {
    * that are not expected to be in the rtc session (local user is excluded).
    */
   validIdentities: string[];
+  /**
+   * The Matrix user ID behind each participant identity, for applying the
+   * user's per member audio settings.
+   */
+  userIds: Record<string, string>;
   /**
    * If set to `true`, mutes all audio tracks rendered by the component.
    * @remarks
@@ -57,6 +74,7 @@ export function LivekitRoomAudioRenderer({
   url,
   livekitRoom,
   validIdentities,
+  userIds,
   muted,
 }: MatrixAudioRendererProps): ReactNode {
   const logger = rootLogger.getChild("[MatrixAudioRenderer]");
@@ -114,8 +132,10 @@ export function LivekitRoomAudioRenderer({
   // If earpiece mode is not used we do not use audioContext to allow standby playback.
   // shouldUseAudioContext is set to false if stereoPan === 0 to allow standby bluetooth playback.
 
-  const { pan: stereoPan, volume: volumeFactor } = useEarpieceAudioConfig();
-  const shouldUseAudioContext = stereoPan !== 0;
+  // The same applies to the per member pan and equaliser: a track only plays
+  // through the audio context while it needs processing.
+  const { pan: earpiecePan, volume: earpieceVolume } = useEarpieceAudioConfig();
+  const peerAudioSettings = useBehavior(peerAudioSetting.value$);
 
   // initialize the potentially used audio context.
   const [audioContext, setAudioContext] = useState<AudioContext | undefined>(
@@ -128,45 +148,96 @@ export function LivekitRoomAudioRenderer({
       void ctx.close();
     };
   }, []);
-  const audioNodes = useMemo(
-    () => ({
-      gain: audioContext?.createGain(),
-      pan: audioContext?.createStereoPanner(),
-    }),
-    [audioContext],
-  );
-
-  // Simple effects to update the gain and pan node based on the props
-  useEffect(() => {
-    if (audioNodes.pan) audioNodes.pan.pan.value = stereoPan;
-  }, [audioNodes.pan, stereoPan]);
-  useEffect(() => {
-    if (audioNodes.gain) audioNodes.gain.gain.value = volumeFactor;
-  }, [audioNodes.gain, volumeFactor]);
 
   return (
     // We add all audio elements into one <div> for the browser developer tool experience/tidyness.
     <div style={{ display: "none" }}>
-      {tracks.map((trackRef) => (
-        <AudioTrackWithAudioNodes
-          key={getTrackReferenceId(trackRef)}
-          trackRef={trackRef}
-          muted={muted}
-          audioContext={shouldUseAudioContext ? audioContext : undefined}
-          audioNodes={audioNodes}
-        />
-      ))}
+      {tracks.map((trackRef) => {
+        const userId = userIds[trackRef.participant.identity];
+        return (
+          <PeerAudioTrack
+            key={getTrackReferenceId(trackRef)}
+            trackRef={trackRef}
+            muted={muted}
+            audioContext={audioContext}
+            peerAudio={
+              userId !== undefined &&
+              trackRef.source !== Track.Source.ScreenShareAudio
+                ? peerAudioFor(peerAudioSettings, userId)
+                : defaultPeerAudio
+            }
+            earpiecePan={earpiecePan}
+            earpieceVolume={earpieceVolume}
+          />
+        );
+      })}
     </div>
+  );
+}
+
+interface PeerAudioTrackProps {
+  trackRef: TrackReference;
+  muted?: boolean;
+  audioContext?: AudioContext;
+  peerAudio: PeerAudio;
+  earpiecePan: number;
+  earpieceVolume: number;
+}
+
+/**
+ * Plays one remote audio track, through its own pan and equaliser nodes when the
+ * member's audio settings or earpiece emulation call for them.
+ */
+function PeerAudioTrack({
+  trackRef,
+  muted,
+  audioContext,
+  peerAudio: { pan, bass, mid, treble },
+  earpiecePan,
+  earpieceVolume,
+}: PeerAudioTrackProps): ReactNode {
+  const processed =
+    earpiecePan !== 0 || needsAudioProcessing({ pan, bass, mid, treble });
+  const chain = useMemo(
+    () =>
+      processed && audioContext
+        ? createPeerAudioChain(audioContext)
+        : undefined,
+    [processed, audioContext],
+  );
+  useEffect(() => {
+    if (chain && audioContext)
+      applyPeerAudio(
+        chain,
+        { pan, bass, mid, treble },
+        { pan: earpiecePan, volume: earpieceVolume },
+        audioContext.currentTime,
+      );
+  }, [
+    chain,
+    audioContext,
+    pan,
+    bass,
+    mid,
+    treble,
+    earpiecePan,
+    earpieceVolume,
+  ]);
+
+  return (
+    <AudioTrackWithAudioNodes
+      trackRef={trackRef}
+      muted={muted}
+      audioContext={chain && audioContext}
+      audioNodes={chain?.nodes}
+    />
   );
 }
 
 interface StereoPanAudioTrackProps {
   muted?: boolean;
   audioContext?: AudioContext;
-  audioNodes: {
-    gain?: GainNode;
-    pan?: StereoPannerNode;
-  };
+  audioNodes?: AudioNode[];
 }
 
 /**
@@ -203,11 +274,9 @@ function AudioTrackWithAudioNodes({
   useEffect(() => {
     if (!trackRef || trackReady) return;
     const track = trackRef.publication.track as RemoteAudioTrack;
-    const useContext = audioContext && audioNodes.gain && audioNodes.pan;
+    const useContext = audioContext && audioNodes;
     track.setAudioContext(useContext ? audioContext : undefined);
-    track.setWebAudioPlugins(
-      useContext ? [audioNodes.gain!, audioNodes.pan!] : [],
-    );
+    track.setWebAudioPlugins(useContext ? audioNodes : []);
     setTrackReady(true);
     controls.setPlaybackStarted();
   }, [audioContext, audioNodes, setTrackReady, trackReady, trackRef]);

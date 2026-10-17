@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
-import { expect, onTestFinished, test, vi } from "vitest";
+import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import {
   type LocalTrackPublication,
   LocalVideoTrack,
@@ -25,7 +25,8 @@ import {
   mockRemoteScreenShare,
 } from "../../utils/test";
 import { constant } from "../Behavior";
-import { showConnectionStats } from "../../settings/settings";
+import { peerAudio, showConnectionStats } from "../../settings/settings";
+import { defaultPeerAudio, EQ_RANGE_DB } from "../PeerAudio";
 
 global.MediaStreamTrack = class {} as unknown as {
   new (): MediaStreamTrack;
@@ -50,6 +51,55 @@ vi.mock("./observeRtpStreamStats", async (importOriginal) => ({
 }));
 
 const rtcMembership = mockRtcMembership("@alice:example.org", "AAAA");
+
+afterEach(() => peerAudio.setValue({}));
+
+test("remember a participant's volume for their next call", () => {
+  const firstCall = mockRemoteMedia(
+    rtcMembership,
+    {},
+    mockRemoteParticipant({}),
+  );
+  firstCall.adjustPlaybackVolume(0.4);
+  firstCall.commitPlaybackVolume();
+
+  const setVolumeSpy = vi.fn();
+  const nextCall = mockRemoteMedia(
+    rtcMembership,
+    {},
+    mockRemoteParticipant({ setVolume: setVolumeSpy }),
+  );
+  expect(nextCall.playbackVolume$.value).toBe(0.4);
+  expect(setVolumeSpy).toHaveBeenLastCalledWith(0.4);
+});
+
+test("do not remember muting a participant by dragging their volume to zero", () => {
+  const vm = mockRemoteMedia(rtcMembership, {}, mockRemoteParticipant({}));
+  vm.adjustPlaybackVolume(0);
+  vm.commitPlaybackVolume();
+
+  expect(peerAudio.getValue()).toEqual({});
+});
+
+test("adjust and reset how a participant sounds", () => {
+  const vm = mockRemoteMedia(rtcMembership, {}, mockRemoteParticipant({}));
+  vm.adjustPlaybackVolume(0.5);
+  vm.commitPlaybackVolume();
+  vm.adjustPeerAudio({ pan: -0.25, bass: 6 });
+  vm.adjustPeerAudio({ treble: EQ_RANGE_DB + 10 });
+  expect(vm.peerAudio$.value).toEqual({
+    volume: 0.5,
+    pan: -0.25,
+    bass: 6,
+    mid: 0,
+    treble: EQ_RANGE_DB,
+  });
+
+  vm.resetPeerAudio();
+  expect(vm.peerAudio$.value).toEqual(defaultPeerAudio);
+  expect(vm.playbackVolume$.value).toBe(1);
+  expect(peerAudio.getValue()).toEqual({});
+});
 
 test("control a participant's volume", () => {
   const setVolumeSpy = vi.fn();

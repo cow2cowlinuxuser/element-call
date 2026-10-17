@@ -69,7 +69,16 @@ export interface OneOnOneMobileLayoutMedia {
 export interface PipLayoutMedia {
   type: "pip";
   edgeToEdge: boolean;
+  /**
+   * Shown when there are no miniature tiles, or when it holds something other
+   * than user media (screen shares or ringing).
+   */
   spotlight: MediaViewModel[];
+  /**
+   * Everyone in the call (including the local user), shown as miniature tiles.
+   * Empty when the PiP should show only the spotlight.
+   */
+  grid: UserMediaViewModel[];
 }
 
 export type LayoutMedia =
@@ -132,7 +141,8 @@ export interface OneOnOneMobileLayout {
 
 export interface PipLayout {
   type: "pip";
-  spotlight: SpotlightTileViewModel;
+  spotlight?: SpotlightTileViewModel;
+  grid: GridTileViewModel[];
 }
 
 /**

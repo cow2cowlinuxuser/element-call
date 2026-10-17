@@ -102,7 +102,12 @@ import {
   computeLayoutMedia,
   computeSpotlight,
   type OneOnOneMedia,
+  type SpotlightFocus,
 } from "../layoutMedia.ts";
+import {
+  findFocusedMedia,
+  observeCallParticipants$,
+} from "./callParticipants.ts";
 import { ElementCallError, UnknownCallError } from "../../utils/errors.ts";
 import { type Epoch, type ObservableScope } from "../ObservableScope.ts";
 import { createHomeserverConnected$ } from "./localMember/HomeserverConnected.ts";
@@ -162,7 +167,15 @@ import {
   createRingingMedia,
   type RingingMediaViewModel,
 } from "../media/RingingMediaViewModel.ts";
-import { type GridTileViewModel } from "../TileViewModel.ts";
+import {
+  type GridTileViewModel,
+  SpotlightTileViewModel,
+} from "../TileViewModel.ts";
+import {
+  defaultPeerAudio,
+  type PeerAudio,
+  updatePeerAudio,
+} from "../PeerAudio.ts";
 
 //TODO
 // Larger rename
@@ -276,6 +289,8 @@ interface LayoutScanState {
 export type LivekitRoomItem = {
   livekitRoom: LivekitRoom;
   participants: string[];
+  /** The Matrix user ID behind each of the participant identities. */
+  userIds: Record<string, string>;
   url: string;
 };
 
@@ -413,6 +428,15 @@ export interface CallViewModel {
    * The layout of tiles in the call interface.
    */
   layout$: Behavior<Layout>;
+  /**
+   * Compact media list (screen shares + participant media) for compact grid view.
+   */
+  compactMedia$: Behavior<MediaViewModel[]>;
+  /**
+   * The currently expanded media tile shown in a floating overlay, if any.
+   */
+  expandedTile$: Behavior<SpotlightTileViewModel | null>;
+  setExpandedMedia: (media: MediaViewModel | null) => void;
   /**
    * The current generation of the tile store, exposed for debugging purposes.
    */
@@ -747,6 +771,7 @@ export function createCallViewModel$(
                   url,
                   livekitRoom,
                   participant: participant.identity,
+                  userId: member.userId,
                 };
               }),
             ),
@@ -761,10 +786,12 @@ export function createCallViewModel$(
           const existing = acc.find((item) => item.url === curr.url);
           if (existing) {
             existing.participants.push(curr.participant);
+            existing.userIds[curr.participant] = curr.userId;
           } else {
             acc.push({
               livekitRoom: curr.livekitRoom,
               participants: [curr.participant],
+              userIds: { [curr.participant]: curr.userId },
               url: curr.url,
             });
           }
@@ -1023,11 +1050,37 @@ export function createCallViewModel$(
     ),
   );
 
+  const focusedUserId$ = new BehaviorSubject<string | null>(null);
+
+  /**
+   * The user that the host asked to show in the spotlight, while they are in
+   * the call.
+   */
+  const spotlightFocus$ = scope.behavior<SpotlightFocus | undefined>(
+    combineLatest([focusedUserId$, userMedia$]).pipe(
+      map(([userId, userMedia]) => findFocusedMedia(userId, userMedia)),
+      distinctUntilChanged(),
+      switchMap((media) =>
+        media === undefined
+          ? of(undefined)
+          : media.screenShares$.pipe(
+              map((screenShares) => ({ media, screenShares })),
+            ),
+      ),
+    ),
+  );
+
   const spotlightAndPip$ = scope.behavior(
     combineLatest(
-      [ringingMedia$, screenShares$, spotlightSpeaker$, localUserMediaForPip$],
-      (ringing, screenShares, speaker, localPip) =>
-        computeSpotlight({ ringing, screenShares, speaker, localPip }),
+      [
+        ringingMedia$,
+        screenShares$,
+        spotlightSpeaker$,
+        localUserMediaForPip$,
+        spotlightFocus$,
+      ],
+      (ringing, screenShares, speaker, localPip, focus) =>
+        computeSpotlight({ ringing, screenShares, speaker, localPip, focus }),
     ).pipe(distinctUntilChanged(shallowObjectEquals)),
   );
 
@@ -1085,6 +1138,151 @@ export function createCallViewModel$(
     windowMode$,
     hasRemoteScreenShares$,
   );
+
+  const expandedMediaId$ = new BehaviorSubject<string | null>(null);
+  const setExpandedMedia = (media: MediaViewModel | null): void => {
+    expandedMediaId$.next(media?.id ?? null);
+  };
+
+  const compactSpotlightTileCache = new WeakMap<
+    MediaViewModel,
+    SpotlightTileViewModel
+  >();
+
+  const compactMedia$ = scope.behavior<MediaViewModel[]>(
+    combineLatest(
+      [screenShares$, grid$, ringingMedia$],
+      (screenShares, grid, ringing): MediaViewModel[] => [
+        ...screenShares,
+        ...(ringing !== null && grid.length <= 1 ? [ringing] : []),
+        ...grid,
+      ],
+    ),
+  );
+
+  const expandedTile$ = scope.behavior<SpotlightTileViewModel | null>(
+    combineLatest(
+      [expandedMediaId$, screenShares$, userMedia$, ringingMedia$],
+      (id, screenShares, userMedia, ringing): SpotlightTileViewModel | null => {
+        if (id === null) return null;
+        const found: MediaViewModel | undefined =
+          screenShares.find((s) => s.id === id) ??
+          userMedia.find((m) => m.id === id) ??
+          (ringing?.id === id ? ringing : undefined);
+        if (found === undefined) return null;
+        let tile = compactSpotlightTileCache.get(found);
+        if (tile === undefined) {
+          tile = new SpotlightTileViewModel(
+            constant([found]),
+            constant(false),
+            constant("solid"),
+          );
+          compactSpotlightTileCache.set(found, tile);
+        }
+        return tile;
+      },
+    ),
+  );
+
+  if (hostBridge.notifyTileOverlay !== undefined) {
+    const notifyTileOverlay = hostBridge.notifyTileOverlay;
+    expandedTile$
+      .pipe(
+        map((tile) => tile !== null),
+        distinctUntilChanged(),
+        pairwise(),
+        scope.bind(),
+      )
+      .subscribe(([, open]) => {
+        notifyTileOverlay({ open }).catch((e) =>
+          logger.warn("Failed to tell the host about tile overlay state", e),
+        );
+      });
+  }
+
+  (hostBridge.tileOverlay$ ?? NEVER)
+    .pipe(scope.bind())
+    .subscribe(({ data, reply }) => {
+      reply();
+      if (data.open === false) {
+        expandedMediaId$.next(null);
+      }
+    });
+
+  (hostBridge.focusParticipant$ ?? NEVER)
+    .pipe(scope.bind())
+    .subscribe(({ data, reply }) => {
+      reply();
+      const userId = typeof data.user_id === "string" ? data.user_id : null;
+      focusedUserId$.next(userId);
+      // The grid layout doesn't show the spotlight unless there's a screen
+      // share, so switch to a layout where the focused user is visible
+      if (userId !== null) {
+        layoutSwitchVm.setLayout("spotlight");
+        const focused = findFocusedMedia(userId, userMedia$.value);
+        if (focused !== undefined) {
+          const share = focused.screenShares$.value[0];
+          expandedMediaId$.next((share ?? focused).id);
+        }
+      } else {
+        expandedMediaId$.next(null);
+      }
+    });
+
+  (hostBridge.participantAudio$ ?? NEVER)
+    .pipe(scope.bind())
+    .subscribe(({ data, reply }) => {
+      reply();
+      const userId = typeof data.user_id === "string" ? data.user_id : null;
+      if (userId === null) return;
+      const remoteMedia = userMedia$.value.filter(
+        (m): m is WrappedUserMediaViewModel & RemoteUserMediaViewModel =>
+          m.type === "user" && !m.local && m.userId === userId,
+      );
+      if (data.reset === true) {
+        updatePeerAudio(userId, defaultPeerAudio);
+        for (const m of remoteMedia) {
+          m.resetPeerAudio();
+          if (m.playbackMuted$.value) m.togglePlaybackMuted();
+        }
+        return;
+      }
+      if (typeof data.volume === "number") {
+        if (data.volume > 0) updatePeerAudio(userId, { volume: data.volume });
+        for (const m of remoteMedia) {
+          m.adjustPlaybackVolume(data.volume);
+          m.commitPlaybackVolume();
+        }
+      }
+      if (typeof data.muted === "boolean") {
+        for (const m of remoteMedia) {
+          if (m.playbackMuted$.value !== data.muted) {
+            m.togglePlaybackMuted();
+          }
+        }
+      }
+      const eqChanges: Partial<
+        Pick<PeerAudio, "pan" | "bass" | "mid" | "treble">
+      > = {};
+      if (typeof data.pan === "number") eqChanges.pan = data.pan;
+      if (typeof data.bass === "number") eqChanges.bass = data.bass;
+      if (typeof data.mid === "number") eqChanges.mid = data.mid;
+      if (typeof data.treble === "number") eqChanges.treble = data.treble;
+      if (Object.keys(eqChanges).length > 0) {
+        updatePeerAudio(userId, eqChanges);
+      }
+    });
+
+  if (hostBridge.notifyParticipants !== undefined) {
+    const notifyParticipants = hostBridge.notifyParticipants;
+    observeCallParticipants$(userMedia$)
+      .pipe(scope.bind())
+      .subscribe((participants) => {
+        notifyParticipants({ participants }).catch((e) =>
+          logger.warn("Failed to tell the host about call participants", e),
+        );
+      });
+  }
 
   const oneOnOneLayoutMedia$: Behavior<OneOnOneMedia | null> = scope.behavior(
     combineLatest([userMedia$, screenShares$]).pipe(
@@ -1640,6 +1838,13 @@ export function createCallViewModel$(
   const toggleScreenSharing =
     options.toggleScreensharing ?? localMembership.toggleScreenSharing;
 
+  (hostBridge.screenShare$ ?? NEVER)
+    .pipe(scope.bind())
+    .subscribe(({ reply }) => {
+      reply();
+      toggleScreenSharing?.();
+    });
+
   const errors$ = scope.behavior<{
     transportError?: ElementCallError;
     matrixError?: ElementCallError;
@@ -1720,6 +1925,9 @@ export function createCallViewModel$(
       showLayoutSwitch$.pipe(map((show) => (show ? layoutSwitchVm : null))),
     ),
     layout$: layout$,
+    compactMedia$,
+    expandedTile$,
+    setExpandedMedia,
     localMatrixLivekitMember$,
     remoteMatrixLivekitMembers$: scope.behavior(
       remoteMatrixLivekitMembers$.pipe(

@@ -14,7 +14,11 @@ import { BrowserRouter } from "react-router-dom";
 import { MediaDevicesContext } from "./MediaDevicesContext";
 import { useAudioContext } from "./useAudioContext";
 import { soundEffectVolume as soundEffectVolumeSetting } from "./settings/settings";
-import { mockMediaDevices } from "./utils/test";
+import {
+  fakeAudioParam,
+  type FakeAudioParam,
+  mockMediaDevices,
+} from "./utils/test";
 import { constant } from "./state/Behavior";
 
 const staticSounds = Promise.resolve({
@@ -52,20 +56,14 @@ const TestComponentWrapper: FC = () => {
 const gainNode = vi.mocked(
   {
     connect: (node: AudioNode) => node,
-    gain: {
-      setValueAtTime: vi.fn(),
-      value: 1,
-    },
+    gain: fakeAudioParam(1),
   },
   true,
 );
 const panNode = vi.mocked(
   {
     connect: (node: AudioNode) => node,
-    pan: {
-      setValueAtTime: vi.fn(),
-      value: 0,
-    },
+    pan: fakeAudioParam(0),
   },
   true,
 );
@@ -78,13 +76,13 @@ export const testAudioContext: Partial<AudioContext> & {
   gain: ReturnType<
     typeof vi.mocked<{
       connect: (node: AudioNode) => AudioNode;
-      gain: { setValueAtTime: ReturnType<typeof vi.fn>; value: number };
+      gain: FakeAudioParam;
     }>
   >;
   pan: ReturnType<
     typeof vi.mocked<{
       connect: (node: AudioNode) => AudioNode;
-      pan: { setValueAtTime: ReturnType<typeof vi.fn>; value: number };
+      pan: FakeAudioParam;
     }>
   >;
   setSinkId: ReturnType<typeof vi.fn>;
@@ -92,6 +90,7 @@ export const testAudioContext: Partial<AudioContext> & {
   createBufferSource: ReturnType<typeof vi.fn>;
   createGain: ReturnType<typeof vi.fn>;
   createStereoPanner: ReturnType<typeof vi.fn>;
+  createBiquadFilter: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
 } = {
   gain: gainNode,
@@ -107,6 +106,16 @@ export const testAudioContext: Partial<AudioContext> & {
   ),
   createGain: vi.fn().mockReturnValue(gainNode),
   createStereoPanner: vi.fn().mockReturnValue(panNode),
+  createBiquadFilter: vi.fn(
+    () =>
+      ({
+        connect: (node: AudioNode) => node,
+        type: "peaking",
+        frequency: { value: 350 },
+        Q: { value: 1 },
+        gain: fakeAudioParam(0),
+      }) as unknown as BiquadFilterNode,
+  ),
   close: vi.fn().mockResolvedValue(undefined),
 };
 

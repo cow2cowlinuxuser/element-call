@@ -55,7 +55,9 @@
     "./playwright/**/*.ts",
     "./sdk/**/*.ts",
     "./component/**/*.ts",
-    "./component/**/*.tsx"
+    "./component/**/*.tsx",
+    "./audio-lab/**/*.ts",
+    "./audio-lab/**/*.tsx"
   ],
   "exclude": ["**.test.ts"]
 }

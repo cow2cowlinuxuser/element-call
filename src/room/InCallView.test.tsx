@@ -233,6 +233,32 @@ describe("InCallView", () => {
       expect(switchFn).toHaveBeenCalledWith("earpiece-id");
     });
   });
+
+  describe("floating tile overlay", () => {
+    it("opens compact controls popover when the compact trigger button is clicked", async () => {
+      const user = userEvent.setup();
+      const { getByTestId, queryByTestId } = createInCallView();
+
+      expect(queryByTestId("compact-controls-popover")).not.toBeInTheDocument();
+      await user.click(getByTestId("compact-controls-trigger"));
+      expect(getByTestId("compact-controls-popover")).toBeInTheDocument();
+      await user.click(getByTestId("compact-controls-trigger"));
+      expect(queryByTestId("compact-controls-popover")).not.toBeInTheDocument();
+    });
+
+    it("opens when a tile is expanded and closes via button or Escape", async () => {
+      const user = userEvent.setup();
+      const { vm, queryByTestId, getByRole } = createInCallView();
+      expect(queryByTestId("floating-tile-overlay")).toBeNull();
+
+      const media = vm.compactMedia$.value[0];
+      act(() => vm.setExpandedMedia(media));
+      expect(queryByTestId("floating-tile-overlay")).toBeVisible();
+
+      await user.click(getByRole("button", { name: "Close" }));
+      expect(queryByTestId("floating-tile-overlay")).toBeNull();
+    });
+  });
 });
 
 describe("ActiveCall", () => {
@@ -322,6 +348,11 @@ describe("ActiveCall", () => {
       size = { width: 300, height: 300 };
       act(() => observers.forEach((notify) => notify()));
       expect(call.getAttribute("data-layout")).toBe("pip");
+      // On desktop, the PiP shows everyone (including the local user) as
+      // miniature tiles rather than a single spotlight
+      expect(
+        container.querySelector("[data-testid='pip-mini-grid']"),
+      ).not.toBeNull();
 
       size = { width: 1000, height: 800 };
       act(() => observers.forEach((notify) => notify()));

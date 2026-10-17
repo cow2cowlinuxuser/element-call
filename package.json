@@ -7,6 +7,7 @@
     "dev:full": "vite",
     "dev:embedded": "vite --config vite-embedded.config.js",
     "dev:component": "vite --config vite-component-dev.config.ts",
+    "audio-lab": "vite --config vite-audio-lab.config.ts",
     "build": "pnpm build:full",
     "build:full": "node --max-old-space-size=16384 node_modules/vite/bin/vite.js build",
     "build:full:production": "pnpm build:full",
@@ -26,8 +27,8 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check; rc=$?; [[ $rc -ne 0 ]] && printf '\\033[46;30m INFO \\033[0m To fix, run: pnpm format\\n' >&2; exit $rc",
     "lint": "pnpm lint:types && pnpm lint:oxlint && pnpm lint:knip && pnpm lint:externals",
-    "lint:oxlint": "oxlint src component playwright",
-    "lint:oxlint-fix": "oxlint --fix src component playwright",
+    "lint:oxlint": "oxlint src component playwright audio-lab",
+    "lint:oxlint-fix": "oxlint --fix src component playwright audio-lab",
     "lint:knip": "knip",
     "lint:externals": "node scripts/check-component-externals.mjs",
     "lint:types": "tsc",
@@ -137,5 +138,8 @@
     "vitest": "^4.1.5",
     "vitest-axe": "^1.0.0-pre.3"
   },
-  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1"
+  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
+  "dependencies": {
+    "@sapphi-red/web-noise-suppressor": "0.4.1"
+  }
 }
